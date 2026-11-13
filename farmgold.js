@@ -7,8 +7,6 @@ const MINECRAFT_VERSION = "26.1.2";
 
 const USERNAME = "Noridomi2k7";
 const PASSWORD = "8866802007";
-
-const INITIAL_HOME_COMMAND = "/home dongkarin";
 // ============================================================
 
 let bot = null;
@@ -29,7 +27,6 @@ function clearAllTimers() {
   }
 }
 
-// Xóa mã màu (§a, §l, &#rrggbb...) để chuỗi hiển thị sạch trên console
 function stripColor(str) {
   if (!str) return "";
   return str
@@ -38,7 +35,6 @@ function stripColor(str) {
     .trim();
 }
 
-// Bóc tách văn bản từ đối tượng ChatMessage / NBT / String của Scoreboard
 function extractText(val) {
   if (!val) return "";
   if (typeof val === "string") {
@@ -67,15 +63,13 @@ function extractText(val) {
   return "";
 }
 
-// Quét toàn bộ các dòng trong bảng thông tin bên phải màn hình (Scoreboard)
 function getSidebarLines(bot) {
   const lines = [];
 
-  // 1. Đọc từ danh sách Scoreboards của Mineflayer
   if (bot.scoreboards) {
     for (const sb of Object.values(bot.scoreboards)) {
       if (!sb || !sb.itemsMap) continue;
-      for (const item of Object.values(sb.itemsMap)) {
+      for (const item of Object.values(bot.scoreboards ? sb.itemsMap : {})) {
         const raw = extractText(item.displayName) || item.name || "";
         const clean = stripColor(raw);
         if (clean) lines.push(clean);
@@ -83,7 +77,6 @@ function getSidebarLines(bot) {
     }
   }
 
-  // 2. Đọc từ Teams (Nhiều plugin trên server dùng prefix + suffix của Team để cập nhật số tiền mượt không nháy)
   if (bot.teams) {
     for (const team of Object.values(bot.teams)) {
       const prefix = extractText(team.prefix);
@@ -125,11 +118,9 @@ function createBot() {
   }
 
   let hasLoggedIn = false;
-  let hasTeleportedHome = false;
   let lastLoginTime = 0;
   let lastMoneyState = "";
 
-  // Lưu thêm dữ liệu từ các gói tin scoreboard_score và teams gửi trực tiếp từ server (dự phòng cho bản 26.1.2)
   const rawPacketLines = new Map();
 
   bot._client.on("scoreboard_score", (packet) => {
@@ -149,7 +140,6 @@ function createBot() {
     }
   });
 
-  // Hàm kiểm tra và in ra số tiền ở bảng bên phải màn hình khi có thay đổi
   function checkAndLogMoney() {
     if (!bot || !hasLoggedIn) return;
 
@@ -158,13 +148,11 @@ function createBot() {
       ...Array.from(rawPacketLines.values())
     ];
 
-    // Tìm dòng "TÀI SẢN: ..." và "CAPSULE: ..." giống trong bảng bên phải màn hình
     const taiSanLine = allLines.find((line) => /t[aà]i\s*s[aả]n\s*:/i.test(line));
     const capsuleLine = allLines.find((line) => /capsule\s*:/i.test(line));
 
     if (taiSanLine || capsuleLine) {
       const currentMoneyState = [taiSanLine, capsuleLine].filter(Boolean).join(" | ");
-      // Chỉ in ra console khi số tiền hoặc capsule thay đổi để màn hình luôn gọn gàng
       if (currentMoneyState !== lastMoneyState) {
         lastMoneyState = currentMoneyState;
         log(`[CẬP NHẬT SỐ DƯ] ${currentMoneyState}`);
@@ -179,28 +167,15 @@ function createBot() {
     lastLoginTime = now;
 
     bot.chat(`/login ${PASSWORD}`);
-    log(`[AUTO-LOGIN - ${source}] Đã gửi lệnh đăng nhập.`);
+    log(`[AUTO-LOGIN - ${source}] Đã gửi lệnh đăng nhập, bắt đầu đứng yên treo máy.`);
     hasLoggedIn = true;
 
-    // Sau khi đăng nhập 3.5 giây thì tự động gõ /home dongkarin
-    if (!hasTeleportedHome) {
-      hasTeleportedHome = true;
-      const homeTimer = setTimeout(() => {
-        if (bot) {
-          bot.chat(INITIAL_HOME_COMMAND);
-          log(`[AUTO-HOME] Đã gửi lệnh: ${INITIAL_HOME_COMMAND}`);
-        }
-      }, 3500);
-      timers.push(homeTimer);
-    }
-
-    // Bắt đầu vòng lặp theo dõi số tiền ở bảng bên phải màn hình mỗi 2 giây
     if (!scoreboardInterval) {
       scoreboardInterval = setInterval(checkAndLogMoney, 2000);
     }
   }
 
-  // 1. Tự động đăng nhập sau 3 giây vào server rồi về /home dongkarin
+  // 1. Tự động đăng nhập sau 3 giây vào server rồi đứng yên
   bot.once("spawn", () => {
     log("Đã vào server thành công.");
     const loginTimer = setTimeout(() => {
@@ -209,7 +184,7 @@ function createBot() {
     timers.push(loginTimer);
   });
 
-  // 2. Chỉ lắng nghe ngầm khung chat để tự nhập pass nếu server yêu cầu (ĐÃ TẮT in thanh chat)
+  // 2. Chỉ lắng nghe ngầm khung chat để tự nhập pass nếu server yêu cầu
   bot.on("messagestr", (message) => {
     const lower = message.trim().toLowerCase();
     if (!lower) return;
@@ -224,20 +199,12 @@ function createBot() {
     }
   });
 
-  // 3. Tự hồi sinh nếu chết và gõ lệnh /back sau 3 giây
+  // 3. Tự hồi sinh nếu chết (không gõ lệnh dịch chuyển)
   bot.on("death", () => {
-    log("Bot bị chết! Đang tự hồi sinh và chuẩn bị gõ /back...");
+    log("Bot bị chết! Đang tự hồi sinh...");
     try {
       bot.respawn();
     } catch (e) {}
-
-    const backTimer = setTimeout(() => {
-      if (bot && hasLoggedIn) {
-        bot.chat("/back");
-        log("[AUTO-BACK] Đã gửi lệnh: /back");
-      }
-    }, 3000);
-    timers.push(backTimer);
   });
 
   // 4. Tự động kết nối lại sau 7 giây nếu bị văng
