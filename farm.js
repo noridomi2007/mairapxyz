@@ -104,17 +104,17 @@ function createBot() {
     }
   });
 
-  // 3. Tự hồi sinh nếu chết và gõ lệnh /back sau 3 giây
+  // 3. Tự hồi sinh nếu chết và gõ lệnh /home dongkarin sau 3 giây
   bot.on("death", () => {
-    log("Bot bị chết! Đang tự hồi sinh và chuẩn bị gõ /back...");
+    log("Bot bị chết! Đang tự hồi sinh và chuẩn bị gõ /home dongkarin...");
     try {
       bot.respawn();
     } catch (e) {}
 
     const backTimer = setTimeout(() => {
       if (bot && hasLoggedIn) {
-        bot.chat("/back");
-        log("[AUTO-BACK] Đã gửi lệnh: /back");
+        bot.chat("/home dongkarin");
+        log("[AUTO-BACK] Đã gửi lệnh: /home dongkarin");
       }
     }, 3000);
     timers.push(backTimer);
