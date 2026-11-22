@@ -5,17 +5,18 @@ const SERVER_IP = "mairap.xyz";
 const SERVER_PORT = 25565;
 const MINECRAFT_VERSION = "26.1.2";
 
-// Điền tên nick và mật khẩu bạn muốn treo ở bãi Yakon
-// (Nếu dùng nick sexkoche1 hoặc sexkoche2 thì đổi PASSWORD thành "nhinconcacne")
 const USERNAME = "Noridomi2k7";
 const PASSWORD = "8866802007";
 
 const TARGET_HOME = "/home yakon";
+const HOME_COOLDOWN = 30000; // Khoảng cách tối thiểu giữa 2 lần /home (30 giây)
 // ============================================================
 
 let bot = null;
 let isReconnecting = false;
 let timers = [];
+let lastHomeTime = 0;
+let pendingHomeTimer = null;
 
 function log(message) {
   console.log(`[${new Date().toLocaleTimeString()}] [${USERNAME}] ${message}`);
@@ -24,6 +25,10 @@ function log(message) {
 function clearAllTimers() {
   timers.forEach((t) => clearTimeout(t));
   timers = [];
+  if (pendingHomeTimer) {
+    clearTimeout(pendingHomeTimer);
+    pendingHomeTimer = null;
+  }
 }
 
 function createBot() {
@@ -55,10 +60,28 @@ function createBot() {
   let hasLoggedIn = false;
   let lastLoginTime = 0;
 
-  // Hàm thực hiện lệnh: /home yakon
+  // Hàm thực hiện lệnh /home yakon (có chờ cooldown 30 giây)
   function goHome(reasonStr) {
     if (!bot) return;
 
+    const now = Date.now();
+    const elapsed = now - lastHomeTime;
+
+    if (elapsed < HOME_COOLDOWN) {
+      const waitMs = HOME_COOLDOWN - elapsed;
+      const waitSec = (waitMs / 1000).toFixed(1);
+      log(`[${reasonStr}] Chưa đủ 30 giây từ lần /home trước. Chờ thêm ${waitSec}s...`);
+
+      if (pendingHomeTimer) clearTimeout(pendingHomeTimer);
+      pendingHomeTimer = setTimeout(() => {
+        pendingHomeTimer = null;
+        goHome(reasonStr);
+      }, waitMs);
+      timers.push(pendingHomeTimer);
+      return;
+    }
+
+    lastHomeTime = now;
     log(`[${reasonStr}] Đang gửi lệnh: ${TARGET_HOME}`);
     bot.chat(TARGET_HOME);
   }
@@ -108,7 +131,7 @@ function createBot() {
     }
   });
 
-  // 3. Khi chết: Tự hồi sinh -> Chờ 3s -> /home yakon
+  // 3. Khi chết: Tự hồi sinh -> Chờ 3s -> /home yakon (tự chờ nếu chưa đủ 30s)
   bot.on("death", () => {
     log("Bot đã bị chết! Đang hồi sinh và chuẩn bị quay lại /home yakon...");
     try {
